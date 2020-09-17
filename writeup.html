@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+  <title>CIT 330 - UTW Cyborg Write Up</title>
+  <LINK href="styles.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+    <p>Cyborg 0->Cyborg 1</p>
+    <pre>
+        Connect
+        ssh cyborg1@cyborg.underthewire.tech
+    </pre>
+    <p>Cyborg 1->Cyborg 2</p>
+    <pre>
+        I can't find a Chris Rogers with any super simple queries such as:
+        Get-ADUser -Filter {Name -eq "Chris Rogers"}
+        or
+        Get-ADUser -Filter {Name -like "Chris Rogers"}
+        Try seeing if we can get a hit on just a surname:
+        Get-ADUser -Filter {Surname -eq "Rogers"}
+        
+        We found him, now lets see if we can get the State attribute.
+        It's probably going to be easiest to base things on his SamAccountName of "chris.rogers":
+        Get-ADUsers chris.rogers -Properties State
+        
+        Password: kansas
+    </pre>
+    <p>Cyborg 2->Cyborg 3</p>
+    <pre>
+        Lots of ways to do this.
+        We can assume DNS zone is underthewire.tech, but can double check:
+        Get-DnsServerZone
+        A Record for CYBORG718W100N:
+        Get-DnsServerResourceRecord -ZoneName "underthewire.tech" -Name "CYBORG718W100N"
+        
+        Much shorter:
+        Resolve-DnsName CYBORG718W100N
+        
+        If you're not interested in learning PowerShell today:
+        ping CYBORG718W100N
+        
+        Password: 172.31.45.167_ipv4
+    </pre>
+    <p>Cyborg 3->Cyborg 4</p>
+    <pre>
+        Confirm we can just use "Cyborg" to query group stuff:
+        Get-AdGroup Cyborg
+        Ok, maybe list out all the members just to see if its like...two, whic makes this easy:
+        Get-AdGroupMember Cyborg
+        Nope, that's a lot, let's count:
+        Get-ADGroupMember Cyborg | Measure-Object
+        
+        Password: 88_objects
+    </pre>
+    <p>Cyborg 4->Cyborg 5</p>
+    <pre>
+        We can just list everything available and scroll:
+        Get-Module -ListAvailable
+        That's not much fun. Let's see if we can narrow it down:
+        Get-Module -ListAvailable | Where-Object {$_.Version -eq "8.9.8.9"}
+        
+        Password: bacon_eggs
+    </pre>
+    <p>Cyborg 5->Cyborg 6</p>
+    <pre>
+        We should be able to just filter using the LogonHours attribute:
+        Get-ADUser -Filter {LogonHours -like "*"}
+        This returned both the Administrator and another user - I'll assume since Administrator doesn't have a last name, that's not it.
+        I'm not sure if I can make something to get it down to just the other user.
+        
+        Password: rowray_timer
+    </pre>
+    <p>Cyborg 6->Cyborg 7</p>
+    <pre>
+        It looks like some people haven't cleaned up their previous work, so we won't cheat and open the "output" like files.
+        cat cypher.txt
+        Returning a string that ends with "==", which makes me assume base64. PowerShell has built in base64 encode/decode capabilties.
+        I don't remember them off the top of my head. After some Googling and wrangling the syntax I come up with:
+        [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("YwB5AGIAZQByAGcAZQBkAGQAbwBuAA=="))
+        
+        Playing around with variables:
+        $geekvar = Get-Content .\cypher.txt
+        [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($geekvar))
+        
+        Password: cybergeddon
+    </pre>
+    <p>Cyborg 7->Cyborg 8</p>
+    <pre>
+        Like a previous item we can use CIM pretty easily since we're logged in as the user we're interested in:
+        Get-CimInstance Win32_StartupCommand
+        
+        I decided to try out something based on their hint:
+        Get-ChildItem -Path HKCU: -Recurse | Where-OBject {$_.Name -like "*Run*"}
+        
+        If you know exactly where to look this works:
+        Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+        
+        Password: skynet
+    </pre>
+    <p>Cyborg 8->Cyborg 9</p>
+    <pre>
+        Get-Content .\1_qs5nwlcl7f_-SwNlQvOrAw.png -Stream Zone.Identifier
+    </pre>
+    <p>Cyborg 9->Cyborg 10</p>
+    <pre>
+        This feels similar enough to an earlier one we're just going to adapt:
+        Get-ADUser -Filter {telephoneNumber -like "*876-5309*"}
+        
+        Password:onita99
+    </pre>
+    <p>Cyborg 10->Cyborg 11</p>
+    <pre>
+        I don't remember anything about this. Using the built in help I tried a few combos and found:
+        Get-AppLockerPolicy -Effective -XML
+        It's formatting sucks, but you can spot the description.
+        
+        After Googling I found the Microsoft doc on Select-Xml and couldn't get it to do anything. Found some online discussions on expanding
+        out XML properties. Maybe give it a whirl.
+        $geekxml = [xml](Get-AppLockerPolicy -Effective -XML)
+        $geekxml.AppLockerPolicy.RuleCollection | Select-Object -ExpandProperty ChildNodes | where {$_.name -like '*ill_be_back.exe*'}
+        
+        Password: terminated!99
+    </pre>
+    <p>Cyborg 11->Cyborg 12</p>
+    <pre>
+        Knowing IIS installs to C:\inetpub we check it out and find the location of the log file in question and move to directory:
+        cd C:\inetpub\logs\logfiles\w3svc1
+        
+        After scoping the file out it looks like we're going to need to essentially read the content and find/select an entry
+        where something other than Mozilla or Opera accessed the server. Since all the lines include a user agent string, lets assume the password
+        entry won't include the terms "Mozilla" or "Opera":
+        Get-Content u_ex160413.log | Select-String -NotMatch -Pattern "Mozilla|Opera"
+        
+        Password: spaceballs
+    </pre>
+    <p>Cyborg 12->Cyborg 13</p>
+    <pre>
+        A lot of things going on. Maybe break it down:
+        1. Find what started "i_heart_robots" service
+        2. Pass full path from above to base64 decoding
+        3. Use first four characters + desktop file
+        
+        Using a base from UTW Century and adding a select for PathName:
+        Get-CimInstance -ClassName Win32_Service | Where-Object {$_.DisplayName -like "i_heart_robots"} | Select-Object PathName
+        
+        Working with some previous knowledge about base64 decoding, we're going to work the other direction and encode instead:
+        [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes('c:\windows\system32\cmd.exe'))
+        
+        Password: yzpc_heart
+    </pre>
+    <p>Cyborg 13->Cyborg 14</p>
+    <pre>
+        This should be simple with the various DNS tools in PowerShell:
+        Get-DNSServerZoneAging underthewire.tech
+        
+        Password: 22_days
+    </pre>
+    <p>Cyborg 14->Cyborg 15</p>
+    <pre>
+        Using their hint, I assume we're going to be going back to the Cim stuff:
+        Get-CimInstance -ClassName win32_DCOMApplicationSetting
+        Buuuut that's obviously too much output. It looks like we'll probably want to filter on "AppID" so let's filter based on what we're looking for:
+        Get-CimInstance -ClassName win32_DCOMApplicationSetting | where 'AppID' -eq "{59B8AFA0-229E-46D9-B980-DDA2C817EC7E}"
+        
+        Password: propshts_objects
+    </pre>
+</body>
+</html>
